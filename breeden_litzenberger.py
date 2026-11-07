@@ -8,7 +8,7 @@ import pandas as pd
 
 RISK_FREE_RATE = 0.043   # TODO: replace with 1-month T-bill, early April 2025
 DIVIDEND_YIELD = 0.0
-EXPIRY_TIME = "16:00:00"
+EXPIRY_TIME = "09:30:00"
 
 def time_to_expiry(timestamp, expiry):
     """Years from the snapshot time to expiry (calendar time, ACT/365).
@@ -277,7 +277,7 @@ if __name__ == "__main__":
         sabr_params,
         assets_path="data/ETH/2025-04-01_assets.csv",
         timestamp="2025-04-02 09:00:00",
-        expiry="20250416",
+        expiry="20250417",
     )
  
     print("row used :", result["timestamp"])
