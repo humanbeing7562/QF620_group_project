@@ -7,8 +7,8 @@ import os
  
 import numpy as np
 import pandas as pd
+from risk_free_rate import RISK_FREE_RATE
 
-RISK_FREE_RATE = 0.043   # TODO: replace with 1-month T-bill, early April 2025
 DIVIDEND_YIELD = 0.0     # no longer used for the forward: F now comes from put-call parity
 EXPIRY_TIME = "09:30:00"
 

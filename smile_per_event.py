@@ -22,8 +22,8 @@ import os
 
 import numpy as np
 import pandas as pd
-
-from key_strike_iv import (DATA_FOLDER, RISK_FREE_RATE, SESSION_TIMES, bs_implied_vol,
+from risk_free_rate import RISK_FREE_RATE
+from key_strike_iv import (DATA_FOLDER, SESSION_TIMES, bs_implied_vol,
                            corrected_spot, find_expiry, forward_from_parity, list_sessions,
                            mids_from, read_csv, settlement_time)
 

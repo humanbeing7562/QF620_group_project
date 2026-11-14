@@ -27,7 +27,7 @@ from scipy.special import ndtr   # standard normal CDF that works on whole array
 
 DATA_FOLDER = "data/"
 OUTPUT_FOLDER = "key_strike_output/"
-RISK_FREE_RATE = 0.043    # TODO: replace with 1-month T-bill, same as the other files
+from risk_free_rate import RISK_FREE_RATE
 EXPIRY_TIME = "09:30:00"  # AM settlement on the trading day after the file date
 
 SESSION_TIMES = {

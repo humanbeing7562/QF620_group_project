@@ -19,7 +19,7 @@ import pandas as pd
 
 DATA_FOLDER = "data/"
 EVENTS_CSV = "2025 Liberation Day Tariff Main Events.csv"
-RISK_FREE_RATE = 0.043   # TODO: same placeholder as qf620_rnd.py
+from risk_free_rate import RISK_FREE_RATE
 EXPIRY_TIME = "09:30:00" # AM settlement on the day after the file date
 
 # session clock times (ET); an ETH file is named by the date the session starts
