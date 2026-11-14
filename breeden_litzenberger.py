@@ -1,13 +1,15 @@
 """
 qf620_rnd.py - risk-neutral density for SPX (QF620 group project)
 """
+import glob
 import math
+import os
  
 import numpy as np
 import pandas as pd
 
 RISK_FREE_RATE = 0.043   # TODO: replace with 1-month T-bill, early April 2025
-DIVIDEND_YIELD = 0.0
+DIVIDEND_YIELD = 0.0     # no longer used for the forward: F now comes from put-call parity
 EXPIRY_TIME = "09:30:00"
 
 def time_to_expiry(timestamp, expiry):
@@ -54,6 +56,56 @@ def read_spot(assets_path, timestamp, max_gap_seconds=60):
  
     spot = float(df.loc[row_time, "SPX"])
     return spot, row_time
+
+def parity_forward(assets_path, timestamp, r, T, max_gap_seconds=60):
+    """Forward from put-call parity on the option mids at the snapshot time.
+
+    Uses the option files in the same folder and for the same date as assets_path,
+    and the same method as vix_index.py / Cboe: at the strike where |C - P| is
+    smallest, F = K + exp(r * T) * (C - P).
+
+    We use this instead of spot * exp((r - q) * T) because the SPX column lags:
+    it stops at 16:00 while options trade to 16:15, it trails in fast markets
+    (e.g. right after the 9 Apr 13:18 pause), and it is broken in ETH 2025-04-06.
+    """
+    folder = os.path.dirname(assets_path)
+    date = os.path.basename(assets_path).split("_")[0]
+    wanted = pd.Timestamp(timestamp)
+
+    rows = {}
+    for opt in ["call", "put"]:
+        for side in ["bid", "ask"]:
+            matches = glob.glob(f"{folder}/{date}_{opt}_{side}_*.csv")
+            if len(matches) == 0:
+                raise FileNotFoundError(f"No {opt}_{side} file for {date} in {folder}")
+            df = pd.read_csv(matches[0], index_col=0, parse_dates=True).sort_index()
+            row_time = df.index.asof(wanted)
+            if pd.isna(row_time) or (wanted - row_time).total_seconds() > max_gap_seconds:
+                raise ValueError(f"No {opt}_{side} quote within {max_gap_seconds}s before {wanted}")
+            rows[f"{opt}_{side}"] = df.loc[row_time]
+
+    best_strike = None
+    best_gap = None
+    best_diff = None
+    for column in rows["call_ask"].index:
+        cb = rows["call_bid"][column]
+        ca = rows["call_ask"][column]
+        pb = rows["put_bid"][column]
+        pa = rows["put_ask"][column]
+        if not (cb > 0 and ca >= cb and pb > 0 and pa >= pb):
+            continue
+        call_mid = (cb + ca) / 2.0
+        put_mid = (pb + pa) / 2.0
+        gap = abs(call_mid - put_mid)
+        if best_gap is None or gap < best_gap:
+            best_gap = gap
+            best_strike = float(column)
+            best_diff = call_mid - put_mid
+
+    if best_strike is None:
+        raise ValueError(f"No strike with both call and put quotes at {wanted}")
+    return best_strike + math.exp(r * T) * best_diff
+
 
 def norm_cdf(x):
     """Standard normal CDF."""
@@ -222,7 +274,7 @@ def plot_density(result, output_path="density.png", title=None):
 
 def run_snapshot(sabr_params, assets_path, timestamp, expiry,
                  k_min=4600.0, k_max=6100.0, dK=5.0,
-                 r=RISK_FREE_RATE, q=DIVIDEND_YIELD):
+                 r=RISK_FREE_RATE):
     """Risk-neutral density for one snapshot, from already-fitted SABR parameters.
  
     sabr_params : dict with alpha, beta, rho, nu (from the SABR calibration)
@@ -235,7 +287,11 @@ def run_snapshot(sabr_params, assets_path, timestamp, expiry,
     # 1. market inputs for this snapshot
     spot, row_time = read_spot(assets_path, timestamp)
     T = time_to_expiry(timestamp, expiry)
-    forward = spot * math.exp((r - q) * T)
+    forward = parity_forward(assets_path, timestamp, r, T)
+
+    # dividend yield implied by the parity forward, so Black-Scholes on spot
+    # prices off the same forward: F = S * exp((r - q) * T)
+    q = r - math.log(forward / spot) / T
  
     # 2. fine strike grid
     strikes = np.arange(k_min, k_max + dK, dK)
@@ -261,6 +317,7 @@ def run_snapshot(sabr_params, assets_path, timestamp, expiry,
         "spot": spot,
         "T": T,
         "forward": forward,
+        "implied_q": q,
         "strikes": strikes,
         "vols": np.array(vols),
         "call_prices": np.array(call_prices),
@@ -283,7 +340,8 @@ if __name__ == "__main__":
     print("row used :", result["timestamp"])
     print("spot     :", result["spot"])
     print("T (days) :", round(result["T"] * 365, 2))
-    print("forward  :", round(result["forward"], 2))
+    print("forward  :", round(result["forward"], 2), "(put-call parity)")
+    print("implied q:", round(result["implied_q"], 4))
     print("checks   :", result["checks"])
  
     # the density itself: one value per strike on the grid
