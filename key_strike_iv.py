@@ -8,9 +8,9 @@ For every snapshot (~3 s) in every session:
        (put below F, call at or above F)
     4. IV at key points, interpolated linearly in IV between the two
        neighbouring strikes:
-           90%, 95%, 97.5% of F, ATM (spot), ATMF (= F), 102.5%, 105%, 110%, 115% of F
+           90%, 95%, 97.5% of F, ATM (spot), ATMF (= F), 102.5%, 105%, 110% of F
        Points outside the 4600-6600 strike grid, or next to quotes stuck near the
-       minimum tick (mid < 0.50), are left blank (NaN), not extrapolated.
+       minimum tick (mid < 0.10), are left blank (NaN), not extrapolated.
 
 Black-Scholes uses spot S and a dividend yield q backed out from the parity
 forward, q = r - ln(F/S) / T, so the prices are consistent with the market forward.
@@ -44,12 +44,11 @@ MONEYNESS_POINTS = [
     ("iv_102_5", 1.025),
     ("iv_105", 1.05),
     ("iv_110", 1.10),
-    ("iv_115", 1.15),
 ]
 
-# quotes this close to the minimum tick (0.05) say nothing reliable about vol:
-# e.g. a 0.20 / 0.35 call far OTM gives a fake upturn in the smile, so drop them
-MIN_MID = 0.50
+# quotes this close to the minimum tick (0.05) say little about vol; we keep anything
+# from 0.10 up so 110% calls exist on calm days too (they are noisy, read with care)
+MIN_MID = 0.10
 
 # a session's SPX column normally sits ~35-43 points below the ES mid;
 # beyond this we treat the SPX column as broken and rebuild spot from ES
@@ -306,7 +305,7 @@ def build_key_strike_series(session, date, r=RISK_FREE_RATE, data_folder=DATA_FO
 
     # put the columns in moneyness order
     ordered = ["spot", "forward", "T", "iv_90", "iv_95", "iv_97_5", "iv_atm",
-               "iv_atmf", "iv_102_5", "iv_105", "iv_110", "iv_115",
+               "iv_atmf", "iv_102_5", "iv_105", "iv_110",
                "skew_90_atmf", "skew_95_105", "spot_from_es", "expiry"]
     return result[ordered]
 
@@ -356,9 +355,9 @@ if __name__ == "__main__":
     downside_labels = ["90% F", "95% F", "97.5% F", "ATM (spot)", "ATMF"]
     downside_colors = ["#08306b", "#2f6fbe", "#8cbde6", "#e08a3c", "#52514e"]
 
-    upside_columns = ["iv_atmf", "iv_102_5", "iv_105", "iv_110", "iv_115"]
-    upside_labels = ["ATMF", "102.5% F", "105% F", "110% F", "115% F"]
-    upside_colors = ["#52514e", "#9fd8bf", "#4fb38a", "#1f8a5c", "#0b5a39"]
+    upside_columns = ["iv_atmf", "iv_102_5", "iv_105", "iv_110"]
+    upside_labels = ["ATMF", "102.5% F", "105% F", "110% F"]
+    upside_colors = ["#52514e", "#9fd8bf", "#3fa77a", "#0b5a39"]
 
     for session, day in list_sessions():
         print(f"{session} {day} ...")
