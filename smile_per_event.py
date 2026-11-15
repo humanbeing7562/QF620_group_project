@@ -26,6 +26,7 @@ from risk_free_rate import RISK_FREE_RATE
 from key_strike_iv import (DATA_FOLDER, SESSION_TIMES, bs_implied_vol,
                            corrected_spot, find_expiry, forward_from_parity, list_sessions,
                            mids_from, read_csv, settlement_time)
+from key_delta_iv import forward_delta
 
 EVENTS_CSV = "2025 Liberation Day Tariff Main Events.csv"
 OUTPUT_FOLDER = "smile_output/"
@@ -76,7 +77,12 @@ def load_session(session, date, data_folder=DATA_FOLDER):
 # ---------------------------------------------------------------- one smile
 
 def smile_at(data, timestamp, r=RISK_FREE_RATE):
-    """Smile at the last snapshot <= timestamp: DataFrame of strike, moneyness, iv.
+    """Smile at the last snapshot <= timestamp: DataFrame of strike, moneyness, iv, delta.
+
+    delta      : forward delta of the OTM option used at that strike, same as
+                 key_delta_iv.py (put delta, negative, below F; call delta at or above F)
+    call_delta : N(d1) at every strike, so puts and calls sit on one axis
+                 (a -0.25 delta put has call_delta 0.75)
 
     Returns (smile, row_time, forward), or (None, None, None) if there is no
     snapshot within MAX_GAP_SECONDS.
@@ -117,7 +123,10 @@ def smile_at(data, timestamp, r=RISK_FREE_RATE):
                             r, np.array([q]), is_call)[0]
         if math.isnan(iv):
             continue
-        records.append({"strike": k, "moneyness": k / forward, "iv": iv})
+        delta = forward_delta(forward, k, T, iv, is_call)
+        call_delta = forward_delta(forward, k, T, iv, True)
+        records.append({"strike": k, "moneyness": k / forward, "iv": iv,
+                        "delta": delta, "call_delta": call_delta})
 
     return pd.DataFrame(records), row_time, forward
 
