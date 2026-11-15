@@ -13,16 +13,19 @@ For every snapshot (~3 s) in every session:
            put delta  = N(d1) - 1      (puts below F, -0.5 < delta < 0)
     3. IV at fixed deltas, interpolated linearly in IV between the two
        neighbouring strikes whose deltas bracket the target:
-           puts : -25 delta
-           calls:  25 delta
+           puts : -25 and -35 delta
+           calls:  25 and  35 delta
            ATM   : IV at K = spot, ATMF: IV at K = F (same as key_strike_iv.py)
        Targets beyond the last usable strike (e.g. the 25-delta put below 4600
        at the lows on 7-9 April) are left blank (NaN), not extrapolated.
        10-delta is not tracked: the 10-delta put needs a strike below 4600 for
        almost all of 4-10 April, so it would be blank most of the time.
-    4. 25-delta risk reversal and butterfly:
+    4. risk reversal and butterfly at each level (25 and 35 delta):
            rr_25 = iv_25c - iv_25p
            bf_25 = (iv_25c + iv_25p) / 2 - iv_atmf
+       35-delta is tracked as well because the 25-delta put is blank for much of
+       7-9 April (4600 is less than 25 delta out of the money there); the
+       35-delta put stays inside the strike grid almost all the time.
 
 Why delta as well as moneyness: a fixed delta adjusts for the vol level and
 time to expiry, so it stays comparable across the 6 April expiry roll
@@ -54,7 +57,7 @@ from key_strike_iv import (
 
 OUTPUT_FOLDER = "key_delta_output/"
 
-DELTA_LEVELS = [25]
+DELTA_LEVELS = [25, 35]
 
 
 # ---------------------------------------------------------------- delta helpers
@@ -179,8 +182,9 @@ def build_key_delta_series(session, date, r=RISK_FREE_RATE, data_folder=DATA_FOL
         records.append(record)
 
     result = pd.DataFrame(records).set_index("time")
-    result["rr_25"] = result["iv_25c"] - result["iv_25p"]
-    result["bf_25"] = 0.5 * (result["iv_25c"] + result["iv_25p"]) - result["iv_atmf"]
+    for level in DELTA_LEVELS:
+        result[f"rr_{level}"] = result[f"iv_{level}c"] - result[f"iv_{level}p"]
+        result[f"bf_{level}"] = 0.5 * (result[f"iv_{level}c"] + result[f"iv_{level}p"]) - result["iv_atmf"]
     result["spot_from_es"] = spot_fixed
     result["expiry"] = expiry
 
@@ -191,7 +195,9 @@ def build_key_delta_series(session, date, r=RISK_FREE_RATE, data_folder=DATA_FOL
     ordered += ["iv_atm", "iv_atmf"]
     for level in reversed(DELTA_LEVELS):
         ordered.append(f"iv_{level}c")
-    ordered += ["rr_25", "bf_25", "spot_from_es", "expiry"]
+    for level in DELTA_LEVELS:
+        ordered += [f"rr_{level}", f"bf_{level}"]
+    ordered += ["spot_from_es", "expiry"]
     return result[ordered]
 
 
@@ -199,13 +205,13 @@ if __name__ == "__main__":
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
     # wings darker, near-ATM lighter; ATMF in grey (same scheme as key_strike_iv.py)
-    put_columns = ["iv_25p", "iv_atm", "iv_atmf"]
-    put_labels = ["25d put", "ATM (spot)", "ATMF"]
-    put_colors = ["#2f6fbe", "#e08a3c", "#52514e"]
+    put_columns = ["iv_25p", "iv_35p", "iv_atm", "iv_atmf"]
+    put_labels = ["25d put", "35d put", "ATM (spot)", "ATMF"]
+    put_colors = ["#2f6fbe", "#86b6ef", "#e08a3c", "#52514e"]
 
-    call_columns = ["iv_atm", "iv_atmf", "iv_25c"]
-    call_labels = ["ATM (spot)", "ATMF", "25d call"]
-    call_colors = ["#e08a3c", "#52514e", "#3fa77a"]
+    call_columns = ["iv_atm", "iv_atmf", "iv_35c", "iv_25c"]
+    call_labels = ["ATM (spot)", "ATMF", "35d call", "25d call"]
+    call_colors = ["#e08a3c", "#52514e", "#7fd1ae", "#3fa77a"]
 
     for session, day in list_sessions():
         print(f"{session} {day} ...")
